@@ -169,9 +169,7 @@ std::string RebasePath(const std::string& input,
 std::string ResolveRelative(std::string_view input,
                             const std::string& value,
                             bool as_file,
-                            std::string_view source_root,
-                            std::string_view actual_path_in = {},
-                            StringAtom* actual_path_out = NULL);
+                            std::string_view source_root);
 
 // Resolves source file or directory relative to some given source root. Returns
 // an empty file path on error.

@@ -14,9 +14,7 @@ PathOutput::PathOutput(const SourceDir& current_dir,
                        std::string_view source_root,
                        EscapingMode escaping)
     : current_dir_(current_dir) {
-  inverse_current_dir_ = RebasePath(
-              BuildSettings::RemapActualToSourcePath("//"),
-              current_dir, source_root);
+  inverse_current_dir_ = RebasePath("//", current_dir, source_root);
   if (!EndsWithSlash(inverse_current_dir_))
     inverse_current_dir_.push_back('/');
   options_.mode = escaping;
@@ -25,20 +23,20 @@ PathOutput::PathOutput(const SourceDir& current_dir,
 PathOutput::~PathOutput() = default;
 
 void PathOutput::WriteFile(std::ostream& out, const SourceFile& file) const {
-  WritePathStr(out, file.actual_path());
+  WritePathStr(out, file.value());
 }
 
 void PathOutput::WriteDir(std::ostream& out,
                           const SourceDir& dir,
                           DirSlashEnding slash_ending) const {
-  if (dir.actual_path() == "/") {
+  if (dir.value() == "/") {
     // Writing system root is always a slash (this will normally only come up
     // on Posix systems).
     if (slash_ending == DIR_NO_LAST_SLASH)
       out << "/.";
     else
       out << "/";
-  } else if (dir.actual_path() == "//") {
+  } else if (dir.value() == "//") {
     // Writing out the source root.
     if (slash_ending == DIR_NO_LAST_SLASH) {
       // The inverse_current_dir_ will contain a [back]slash at the end, so we
@@ -63,12 +61,11 @@ void PathOutput::WriteDir(std::ostream& out,
     else
       out << ".";
   } else if (slash_ending == DIR_INCLUDE_LAST_SLASH) {
-    WritePathStr(out, dir.actual_path());
+    WritePathStr(out, dir.value());
   } else {
     // DIR_NO_LAST_SLASH mode, just trim the last char.
     WritePathStr(out,
-                 std::string_view(dir.actual_path().data(),
-                                  dir.actual_path().size() - 1));
+                 std::string_view(dir.value().data(), dir.value().size() - 1));
   }
 }
 
@@ -156,11 +153,11 @@ void PathOutput::WriteSourceRelativeString(std::ostream& out,
 void PathOutput::WritePathStr(std::ostream& out, std::string_view str) const {
   DCHECK(str.size() > 0 && str[0] == '/');
 
-  if (str.substr(0, current_dir_.actual_path().size()) ==
-      std::string_view(current_dir_.actual_path())) {
+  if (str.substr(0, current_dir_.value().size()) ==
+      std::string_view(current_dir_.value())) {
     // The current dir is a prefix of the output file, so we can strip the
     // prefix and write out the result.
-    EscapeStringToStream(out, str.substr(current_dir_.actual_path().size()),
+    EscapeStringToStream(out, str.substr(current_dir_.value().size()),
                          options_);
   } else if (str.size() >= 2 && str[1] == '/') {
     WriteSourceRelativeString(out, str.substr(2));

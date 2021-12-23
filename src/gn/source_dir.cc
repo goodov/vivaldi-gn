@@ -72,28 +72,17 @@ static StringAtom SourceDirStringAtom(std::string_view s) {
 
 }  // namespace
 
-SourceDir::SourceDir(std::string_view s)
-    : value_(SourceDirStringAtom(s)) {
-  actual_path_ = StringAtom(BuildSettings::RemapSourcePathToActual(value_.str()));
-}
-
-SourceDir::SourceDir(std::string_view p, const std::string_view& p_act)
-    : value_(SourceDirStringAtom(p)),
-      actual_path_(SourceDirStringAtom(p_act).str()) {}
+SourceDir::SourceDir(std::string_view s) : value_(SourceDirStringAtom(s)) {}
 
 std::string SourceDir::ResolveRelativeAs(bool as_file,
                                          const Value& blame_input_value,
                                          std::string_view input_value,
                                          Err* err,
-                                         std::string_view source_root,
-                                         std::string_view actual_path_in,
-                                         StringAtom* actual_path_out) const {
-  if (!ValidateResolveInput(as_file, blame_input_value, input_value,
-                                        err)) {
+                                         std::string_view source_root) const {
+  if (!ValidateResolveInput(as_file, blame_input_value, input_value, err)) {
     return std::string();
   }
-  return ResolveRelative(input_value, value_.str(), as_file, source_root,
-                         actual_path_in, actual_path_out);
+  return ResolveRelative(input_value, value_.str(), as_file, source_root);
 }
 
 SourceFile SourceDir::ResolveRelativeFile(const Value& p,
@@ -108,8 +97,7 @@ SourceFile SourceDir::ResolveRelativeFile(const Value& p,
   if (!ValidateResolveInput(true, p, input_string, err))
     return ret;
 
-  ret.SetValue(ResolveRelative(input_string, value_.str(), true, source_root,
-                               actual_path_.str(), &ret.actual_path_));
+  ret.SetValue(ResolveRelative(input_string, value_.str(), true, source_root));
   return ret;
 }
 
@@ -119,8 +107,7 @@ SourceDir SourceDir::ResolveRelativeDir(const Value& blame_input_value,
                                         std::string_view source_root) const {
   SourceDir ret;
   ret.value_ = StringAtom(ResolveRelativeAs(false, blame_input_value,
-                                            input_value, err, source_root,
-                                            actual_path_, &ret.actual_path_));
+                                            input_value, err, source_root));
   return ret;
 }
 
@@ -136,7 +123,7 @@ std::string SourceDir::ResolveRelativeAs(bool as_file,
     v_value = &v.string_value();
   }
   std::string result =
-      ResolveRelativeAs(as_file, v, *v_value, err, source_root, actual_path_.str());
+      ResolveRelativeAs(as_file, v, *v_value, err, source_root);
   if (!as_file)
     AssertValueSourceDirString(result);
   return result;
@@ -151,8 +138,6 @@ SourceDir SourceDir::ResolveRelativeDir(const Value& v,
   return ResolveRelativeDir(v, v.string_value(), err, source_root);
 }
 
-base::FilePath SourceDir::Resolve(const base::FilePath& source_root,
-                                  bool use_actual_path) const {
-  return ResolvePath(use_actual_path ? actual_path_.str() : value_.str(), false,
-                     source_root);
+base::FilePath SourceDir::Resolve(const base::FilePath& source_root) const {
+  return ResolvePath(value_.str(), false, source_root);
 }

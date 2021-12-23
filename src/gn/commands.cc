@@ -558,7 +558,7 @@ bool FilterPatternsFromString(const BuildSettings* build_settings,
                               Err* err) {
   std::vector<std::string> tokens = base::SplitString(
       label_list_string, ";", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
-  SourceDir root_dir(BuildSettings::RemapActualToSourcePath("//"));
+  SourceDir root_dir("//");
 
   filters->reserve(tokens.size());
   for (const std::string& token : tokens) {

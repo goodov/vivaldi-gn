@@ -54,15 +54,11 @@ class SourceFile {
   explicit SourceFile(const std::string& value);
   explicit SourceFile(std::string&& value);
   explicit SourceFile(StringAtom value);
-  SourceFile(const std::string& p,
-             const std::string& p_act);
-
 
   ~SourceFile() = default;
 
   bool is_null() const { return value_.empty(); }
   const std::string& value() const { return value_.str(); }
-  const std::string& actual_path() const { return actual_path_.str(); }
   Type GetType() const;
 
   // Optimized implementation of GetType() == SOURCE_XXX
@@ -78,8 +74,7 @@ class SourceFile {
 
   // Resolves this source file relative to some given source root. Returns
   // an empty file path on error.
-  base::FilePath Resolve(const base::FilePath& source_root,
-                         bool use_actual_path) const;
+  base::FilePath Resolve(const base::FilePath& source_root) const;
 
   // Returns true if this file starts with a "//" which indicates a path
   // from the source root.
@@ -133,7 +128,6 @@ class SourceFile {
   void SetValue(const std::string& value);
 
   StringAtom value_;
-  StringAtom actual_path_;
 };
 
 namespace std {
