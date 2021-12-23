@@ -21,7 +21,10 @@ using FormatTest = TestWithScheduler;
     std::string out;                                                        \
     std::string expected;                                                   \
     base::FilePath src_dir =                                                \
-        GetExePath().DirName().Append(FILE_PATH_LITERAL(".."));             \
+        GetExePath().DirName().Append(FILE_PATH_LITERAL(".."))              \
+            .Append(FILE_PATH_LITERAL(".."))                                \
+            .Append(FILE_PATH_LITERAL("thirdparty"))                        \
+            .Append(FILE_PATH_LITERAL("gn"));                               \
     base::SetCurrentDirectory(src_dir);                                     \
     ASSERT_TRUE(base::ReadFileToString(                                     \
         base::FilePath(FILE_PATH_LITERAL("src/gn/format_test_data/")        \

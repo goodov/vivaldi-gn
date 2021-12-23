@@ -32,6 +32,7 @@ class SourceDir {
   SourceDir() = default;
 
   SourceDir(std::string_view s);
+  SourceDir(std::string_view p, const std::string_view& p_act);
 
   // Resolves a file or dir name (based on as_file parameter) relative
   // to this source directory. Will return an empty string on error
@@ -58,7 +59,9 @@ class SourceDir {
       const Value& blame_input_value,
       std::string_view input_value,
       Err* err,
-      std::string_view source_root = std::string_view()) const;
+      std::string_view source_root = std::string_view(),
+      std::string_view actual_path_in = std::string_view(),
+      StringAtom* actual_path_out = nullptr) const;
 
   // Wrapper for ResolveRelativeAs.
   SourceFile ResolveRelativeFile(
@@ -82,10 +85,12 @@ class SourceDir {
 
   // Resolves this source file relative to some given source root. Returns
   // an empty file path on error.
-  base::FilePath Resolve(const base::FilePath& source_root) const;
+  base::FilePath Resolve(const base::FilePath& source_root,
+                         bool use_actual_path) const;
 
   bool is_null() const { return value_.empty(); }
   const std::string& value() const { return value_.str(); }
+  const std::string& actual_path() const { return actual_path_.str(); }
 
   // Returns true if this path starts with a "//" which indicates a path
   // from the source root.
@@ -133,6 +138,7 @@ class SourceDir {
  private:
   friend class SourceFile;
   StringAtom value_;
+  StringAtom actual_path_;
 };
 
 namespace std {

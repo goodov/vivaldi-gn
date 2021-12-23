@@ -22,6 +22,8 @@ inline std::string FilePathToUTF8(const base::FilePath& path) {
 }
 base::FilePath UTF8ToFilePath(std::string_view sp);
 
+std::string MaybeQuotePath(const std::string_view path);
+
 // Extensions -----------------------------------------------------------------
 
 // Returns the index of the extension (character after the last dot not after a
@@ -167,7 +169,9 @@ std::string RebasePath(const std::string& input,
 std::string ResolveRelative(std::string_view input,
                             const std::string& value,
                             bool as_file,
-                            std::string_view source_root);
+                            std::string_view source_root,
+                            std::string_view actual_path_in = {},
+                            StringAtom* actual_path_out = NULL);
 
 // Resolves source file or directory relative to some given source root. Returns
 // an empty file path on error.

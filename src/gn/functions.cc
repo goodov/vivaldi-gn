@@ -1287,6 +1287,192 @@ Value RunStringSplit(Scope* scope,
   }
   return result;
 }
+// declare_overrides ----------------------------------------------------------
+
+const char kDeclareOverrides[] = "declare_overrides";
+const char kDeclareOverrides_HelpShort[] =
+    "declare_overrides: Declare override build arguments.";
+const char kDeclareOverrides_Help[] =
+R"(declare_overrides: Declare override build arguments.
+
+  Introduces the given arguments into the current scope, overriding any
+  subsequent declare_args declarations, but not any already declared. If
+  they are not specified on the command line or in a toolchain's
+  arguments, the default values given in the declare_overrides block will
+  be used. However, these defaults will not override command-line values.
+
+  This command should be the first run or imported by the root BUILD.gn,
+  before importing any other .gni files or calling declare_args()
+
+  See also \"gn help buildargs\" for an overview.
+
+  The precise behavior of declare overrides is:
+
+   1. The declare_overrides block executes. Any variables in the enclosing
+      scope are available for reading.
+
+   2. At the end of executing the block, any variables set within that
+      scope are saved globally as build arguments, with their current
+      values being saved as the \"default value\" for that argument.
+
+   3. User-defined overrides are applied. Anything set in \"gn args\"
+      now overrides any default values. The resulting set of variables
+      is promoted to be readable from the following code in the file.
+
+  This has some ramifications that may not be obvious:
+
+    - You should not perform difficult work inside a declare_overrides block
+      since this only sets a default value that may be discarded. In
+      particular, don't use the result of exec_script() to set the
+      default value. If you want to have a script-defined default, set
+      some default \"undefined\" value like [], \"\", or -1, and after
+      the declare_overrides block, call exec_script if the value is unset by
+      the user.
+
+    - Any code inside of the declare_overrides block will see the default
+      values of previous variables defined in the block rather than
+      the user-overridden value. This can be surprising because you will
+      be used to seeing the overridden value. If you need to make the
+      default value of one arg dependent on the possibly-overridden
+      value of another, write two separate declare_override blocks:
+
+        declare_overrides() {
+          enable_foo = true
+        }
+        declare_overrides() {
+          # Bar defaults to same user-overridden state as foo.
+          enable_bar = enable_foo
+        }
+
+  Example
+
+    declare_overrides() {
+      enable_teleporter = true
+    }
+    declare_args() {
+      enable_teleporter = false
+      enable_doom_melon = false
+    }
+
+  If you want to override the (default disabled) Doom Melon:
+    gn --args=\"enable_doom_melon=true enable_teleporter=false\"
+
+  This also disables the teleporter (default enabled by the override).
+)";
+
+Value RunDeclareOverrides(Scope* scope,
+                     const FunctionCallNode* function,
+                     const std::vector<Value>& args,
+                     BlockNode* block,
+                     Err* err) {
+  NonNestableBlock non_nestable(scope, function, "declare_overrides");
+  if (!non_nestable.Enter(err))
+    return Value();
+
+  Scope block_scope(scope);
+  block_scope.SetProperty(&kInDeclareArgsKey, &block_scope);
+  block->Execute(&block_scope, err);
+  if (err->has_error())
+    return Value();
+
+  // Pass the values from our scope into the Args object for adding to the
+  // overrides with the proper values (taking into account the defaults given in
+  // the block_scope, and arguments passed into the build).
+  Scope::KeyValueMap values;
+  block_scope.GetCurrentScopeValues(&values);
+  ((BuildSettings *) scope->settings()->build_settings())->build_args().
+      AddArgOverrides(values, true, scope);
+  return Value();
+}
+
+// set_path_map ----------------------------------------------------------
+
+const char kSetPathMap[] = "set_path_map";
+const char kSetPathMap_HelpShort[] =
+    "set_path_map: Set a path override map.";
+const char kSetPathMap_Help[] =
+    R"(set_path_map: Set a path override map.
+
+  NOTE: Only used in the "dotgn"-file.
+
+  set_path_map(<path_map>)
+
+  This function takes an array of elements lists having two subelements,
+  an absolute label prefix and an absolute label specifying the actual
+  filesystem path relative to the project's top directory that the prefix
+  is an alias for. The elements must be ordered with the most specific
+  prefixes first, preferably with the least specific "//" element last.
+  Correspondingly, the most specific actual label should be last, and the
+  least specific element first.
+
+  Example specification and label mappings:
+
+    set_path_map([
+      # Prefix, actual path
+      # Most specific prefixes first
+      [
+        "//alpha",
+        "//",
+      ],
+      [
+        "//beta",
+        "//beta",
+      ],
+      [
+        "//",
+        "//gamma",
+      ],
+    ])
+
+    Label             Actual path
+    //alpha/a/b/c     //a/b/c
+    //beta/d/e/f      //beta/d/e/f
+    //foo/g/h/i       //gamma/foo/g/h/i
+)";
+
+Value RunSetPathMap(Scope* scope,
+    const FunctionCallNode* function,
+    const std::vector<Value>& args,
+    Err* err) {
+  if (args.size() <1) {
+    Err(Location(), "No Path Map declared").PrintToStdout();
+    return Value();
+  }
+
+  BuildSettings *build_settings =
+    (BuildSettings *) scope->settings()->build_settings();
+
+  const Value& path_map = args[0];
+  if (!path_map.VerifyTypeIs(Value::LIST, err)) {
+    return Value();
+  }
+  for (auto &&it : path_map.list_value()) {
+    if (!it.VerifyTypeIs(Value::LIST, err)) {
+      return Value();
+    }
+    if (it.list_value().size() <2) {
+      *err = Err(Location(), "Failed to set path map values");
+      return Value();
+    }
+
+    const Value &prefix = it.list_value()[0];
+    const Value &actual = it.list_value()[1];
+    if (!prefix.VerifyTypeIs(Value::STRING, err) ||
+      !actual.VerifyTypeIs(Value::STRING, err)) {
+      return Value();
+    }
+    if (!build_settings->RegisterPathMap(prefix.string_value(),
+      actual.string_value())) {
+      *err = Err(Location(), "Failed to set path map values");
+      return Value();
+    }
+  }
+  // May need to update the source path of the main gn file
+  // But we do that during the FillOtherConfig setup step
+  // scope->settings()->UpdateRootBuildFile();
+
+  return Value();
+}
 
 // -----------------------------------------------------------------------------
 
@@ -1407,6 +1593,10 @@ struct FunctionInfoInitializer {
     INSERT_FUNCTION(Toolchain, false)
     INSERT_FUNCTION(WriteFile, false)
 
+    INSERT_FUNCTION(DeclareOverrides,false)
+    INSERT_FUNCTION(SetPathMap,false)
+    INSERT_FUNCTION(UpdateTarget,false)
+    INSERT_FUNCTION(UpdateTemplate,false)
 #undef INSERT_FUNCTION
   }
 };
@@ -1478,6 +1668,11 @@ Value RunFunction(Scope* scope,
     block->Execute(&block_scope, err);
     if (err->has_error())
       return Value();
+    if (function->function().value() == "copy") {
+      if (!UpdateTheTarget(&block_scope, function,
+                                   args.list_value(), block, err))
+        return Value();
+    }
 
     Value result = found_function->second.executed_block_runner(
         function, args.list_value(), &block_scope, err);

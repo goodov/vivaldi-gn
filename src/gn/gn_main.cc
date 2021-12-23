@@ -18,6 +18,8 @@
 
 #include "last_commit_position.h"
 
+#include "base/environment.h"
+
 namespace {
 
 std::vector<std::string> GetArgs(const base::CommandLine& cmdline) {

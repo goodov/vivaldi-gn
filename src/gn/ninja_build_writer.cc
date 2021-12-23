@@ -53,7 +53,7 @@ struct Counts {
 base::CommandLine GetSelfInvocationCommandLine(
     const BuildSettings* build_settings) {
   const base::FilePath build_path =
-      build_settings->build_dir().Resolve(build_settings->root_path());
+      build_settings->build_dir().Resolve(build_settings->root_path(), true);
 
   base::FilePath exe_path = GetExePath();
   if (build_path.IsAbsolute())
@@ -319,7 +319,7 @@ void NinjaBuildWriter::WriteNinjaRules() {
   sorter.Add(other_files.begin(), other_files.end());
 
   const base::FilePath build_path =
-      build_settings_->build_dir().Resolve(build_settings_->root_path());
+      build_settings_->build_dir().Resolve(build_settings_->root_path(), true);
 
   EscapeOptions depfile_escape;
   depfile_escape.mode = ESCAPE_DEPFILE;

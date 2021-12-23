@@ -378,7 +378,7 @@ void RecursivelyAssignIds(PBXProject* project) {
 // out/$configuration-$platform (e.g. out/Debug-iphonesimulator).
 std::string ConfigNameFromBuildSettings(const BuildSettings* build_settings) {
   std::string config_name = FilePathToUTF8(build_settings->build_dir()
-                                               .Resolve(base::FilePath())
+                                               .Resolve(base::FilePath(), true)
                                                .StripTrailingSeparators()
                                                .BaseName());
 

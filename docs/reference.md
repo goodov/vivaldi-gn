@@ -39,6 +39,7 @@
     *   [assert: Assert an expression is true at generation time.](#func_assert)
     *   [config: Defines a configuration object.](#func_config)
     *   [declare_args: Declare build arguments.](#func_declare_args)
+    *   [declare_overrides: Declare override build arguments.](#declare_overrides)
     *   [defined: Returns whether an identifier is defined.](#func_defined)
     *   [exec_script: Synchronously run a script and return the output.](#func_exec_script)
     *   [filter_exclude: Remove values that match a set of patterns.](#func_filter_exclude)
@@ -58,6 +59,7 @@
     *   [rebase_path: Rebase a file or directory to another location.](#func_rebase_path)
     *   [set_default_toolchain: Sets the default toolchain name.](#func_set_default_toolchain)
     *   [set_defaults: Set default values for a target type.](#func_set_defaults)
+    *   [set_path_map: Set a path override map.](#set_path_map)
     *   [split_list: Splits a list into N different sub-lists.](#func_split_list)
     *   [string_join: Concatenates a list of strings with a separator.](#func_string_join)
     *   [string_replace: Replaces substring in the given string.](#func_string_replace)
@@ -65,6 +67,8 @@
     *   [template: Define a template rule.](#func_template)
     *   [tool: Specify arguments to a toolchain tool.](#func_tool)
     *   [toolchain: Defines a toolchain.](#func_toolchain)
+    *   [update_target: Add code to be run after setting up a target.](#update_target)
+    *   [update_template_instance: Add code to be run after setting up a template instance.](#update_template_instance)
     *   [write_file: Write a file to disk.](#func_write_file)
 *   [Built-in predefined variables](#predefined_variables)
     *   [current_cpu: [string] The processor architecture of the current toolchain.](#var_current_cpu)
@@ -91,7 +95,7 @@
     *   [arflags: [string list] Arguments passed to static_library archiver.](#var_arflags)
     *   [args: [string list] Arguments passed to an action.](#var_args)
     *   [asmflags: [string list] Flags passed to the assembler.](#var_asmflags)
-    *   [assert_no_deps: [label pattern list] Ensure no deps on these targets.](#var_assert_no_deps)
+    *   [assert_no_deps:Â [label pattern list] Ensure no deps on these targets.](#var_assert_no_deps)
     *   [bridge_header: [string] Path to C/Objective-C compatibility header.](#var_bridge_header)
     *   [bundle_contents_dir: Expansion of {{bundle_contents_dir}} in create_bundle.](#var_bundle_contents_dir)
     *   [bundle_deps_filter: [label list] A list of labels that are filtered out.](#var_bundle_deps_filter)
@@ -2288,6 +2292,73 @@
   This also sets the teleporter, but it's already defaulted to on so it will
   have no effect.
 ```
+### <a name="declare_overrides"></a>**declare_overrides**: Declare override build arguments.
+
+```
+  Introduces the given arguments into the current scope, overriding any
+  subsequent declare_args declarations, but not any already declared. If
+  they are not specified on the command line or in a toolchain's
+  arguments, the default values given in the declare_overrides block will
+  be used. However, these defaults will not override command-line values.
+
+  This command should be the first run or imported by the root BUILD.gn,
+  before importing any other .gni files or calling declare_args()
+
+  See also \"gn help buildargs\" for an overview.
+
+  The precise behavior of declare overrides is:
+
+   1. The declare_overrides block executes. Any variables in the enclosing
+      scope are available for reading.
+
+   2. At the end of executing the block, any variables set within that
+      scope are saved globally as build arguments, with their current
+      values being saved as the \"default value\" for that argument.
+
+   3. User-defined overrides are applied. Anything set in \"gn args\"
+      now overrides any default values. The resulting set of variables
+      is promoted to be readable from the following code in the file.
+
+  This has some ramifications that may not be obvious:
+
+    - You should not perform difficult work inside a declare_overrides block
+      since this only sets a default value that may be discarded. In
+      particular, don't use the result of exec_script() to set the
+      default value. If you want to have a script-defined default, set
+      some default \"undefined\" value like [], \"\", or -1, and after
+      the declare_overrides block, call exec_script if the value is unset by
+      the user.
+
+    - Any code inside of the declare_overrides block will see the default
+      values of previous variables defined in the block rather than
+      the user-overridden value. This can be surprising because you will
+      be used to seeing the overridden value. If you need to make the
+      default value of one arg dependent on the possibly-overridden
+      value of another, write two separate declare_override blocks:
+
+        declare_overrides() {
+          enable_foo = true
+        }
+        declare_overrides() {
+          # Bar defaults to same user-overridden state as foo.
+          enable_bar = enable_foo
+        }
+
+  Example
+
+    declare_overrides() {
+      enable_teleporter = true
+    }
+    declare_args() {
+      enable_teleporter = false
+      enable_doom_melon = false
+    }
+
+  If you want to override the (default disabled) Doom Melon:
+    gn --args=\"enable_doom_melon=true enable_teleporter=false\"
+
+  This also disables the teleporter (default enabled by the override).
+```
 ### <a name="func_defined"></a>**defined**: Returns whether an identifier is defined.
 
 ```
@@ -3103,6 +3174,45 @@
     # you don't want the default for a particular default:
     configs -= [ "//tools/mything:settings" ]
   }
+```
+### <a name="set_path_map"></a>**set_path_map**: Set a path override map.
+
+```
+  NOTE: Only used in the "dotgn"-file.
+
+  set_path_map(<path_map>)
+
+  This function takes an array of elements lists having two subelements,
+  an absolute label prefix and an absolute label specifying the actual
+  filesystem path relative to the project's top directory that the prefix
+  is an alias for. The elements must be ordered with the most specific
+  prefixes first, preferably with the least specific "//" element last.
+  Correspondingly, the most specific actual label should be last, and the
+  least specific element first.
+
+  Example specification and label mappings:
+
+    set_path_map([
+      # Prefix, actual path
+      # Most specific prefixes first
+      [
+        "//alpha",
+        "//",
+      ],
+      [
+        "//beta",
+        "//beta",
+      ],
+      [
+        "//",
+        "//gamma",
+      ],
+    ])
+
+    Label             Actual path
+    //alpha/a/b/c     //a/b/c
+    //beta/d/e/f      //beta/d/e/f
+    //foo/g/h/i       //gamma/foo/g/h/i
 ```
 ### <a name="func_split_list"></a>**split_list**: Splits a list into N different sub-lists.
 
@@ -4134,6 +4244,127 @@
         ...
       }
     }
+```
+### <a name="update_target"></a>**update_target**: Add code to be run after setting up a target.
+```
+  update_target functions take a single parameter, the label of the target to
+  be updated, it must either be fully qualified, or just have the intra-file
+  \":foo" name (not recommended, as it might conceivably be run for multiple
+  targets, with possible unwanted side-effects.
+
+  The code portion of the function is run in the scope of the target, after
+  the target code itself have been executed. If multiple update_target calls
+  will update a single target, the order of execution is not guaranteed.
+
+  Updates of targets can be used to add additional sources or dependencies
+  by a project embedding another. They can also be used to update variables
+  in a target.
+
+  update_targets must be specified by the top project's BUILD.gn before any
+  targets have been declared. Updates declared afterwards will not be called.
+
+  Caution: Updates of variables already used to compute other variables in
+  the original target will not affect the other variables' value.
+
+  Recommended organization: update_targets should be placed in gni files,
+  imported directly or indirectly by the top BUILD.gn file, and no other
+  BUILD.gn file. The gni files should be placed in the same directory as
+  the code they are related to, such as the files being added as sources,
+  or targets added as dependencies.
+
+  Example:
+
+    in //foo/source_updates.gni:
+
+      update_target("//bar:bar") {
+        sources += ["//foo/foo.cc"]
+      }
+
+    in //bar/BUILD.gn
+
+      #import would normally go in top level BUILD.gn
+      import("//foo/source_updates.gni")
+
+      executable("bar") {
+        sources = ["bar.cc"]
+      }
+
+    The result would become
+
+      executable("bar") {
+        sources = [
+          "bar.cc",
+          "//foo/foo.cc",
+        ]
+      }
+```
+### <a name="update_template_instance"></a>**update_template_instance**: Add code to a template instance.
+
+```
+  update_template_instance functions take a single parameter, the label of the
+  template instantiation to be updated, it must either be fully qualified, or
+  just have the intra-file \":foo" name (not recommended, as it might
+  conceivably be run for multiple instanitations, with possible unwanted
+  side-effects.
+
+  The code portion of the function is run in the scope of the template
+  instantiation, after the template instantiation code itself have been
+  executed. If multiple update_template_instance calls will update a single
+  template instantiation, the order of execution is not guaranteed.
+
+  Updates of template instantiation can be used to add additional sources or
+  dependencies by a project embedding another. They can also be used to update
+  variables in a template instantiation.
+
+  update_template_instance must be specified by the top project's BUILD.gn
+  before any targets have been declared. Updates declared afterwards will not
+  be called.
+
+  Caution: Updates of variables already used to compute other variables in
+  the original template instantiation will not affect the other variables'
+  value.
+
+  Caution: In the case of nested template instantiations each using the
+  target_name, the update will only be run for the outermost template with
+  that particular label and toolchain.
+
+  Recommended organization: update_template_instance should be placed in gni
+  files, imported directly or indirectly by the top BUILD.gn file, and no other
+  BUILD.gn file. The gni files should be placed in the same directory as
+  the code they are related to, such as the files being added as sources,
+  or targets added as dependencies.
+
+  Example:
+
+    in //foo/source_updates.gni:
+
+      update_template_instance("//bar:bar") {
+        sources += ["//foo/foo.cc"]
+      }
+
+    in //bar/BUILD.gn
+
+      #import would normally go in top level BUILD.gn
+      import("//foo/source_updates.gni")
+
+      template("baz") {
+        executable(target_name) {
+          sources = invoker.sources
+        }
+      }
+
+      baz("bar") {
+        sources = ["bar.cc"]
+      }
+
+    The result would become
+
+      baz("bar") {
+        sources = [
+          "bar.cc",
+          "//foo/foo.cc",
+        ]
+      }
 ```
 ### <a name="func_write_file"></a>**write_file**: Write a file to disk.
 
@@ -6812,6 +7043,11 @@
       When set specifies the minimum required version of Ninja. The default
       required version is 1.7.2. Specifying a higher version might enable the
       use of some of newer features that can make the build more efficient.
+
+  set_path_map [optional]
+
+      Function used to specify path overrides. See "set_path_map" function
+      for details
 ```
 
 #### **Example .gn file contents**

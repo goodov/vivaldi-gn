@@ -166,6 +166,11 @@ Variables
       required version is 1.7.2. Specifying a higher version might enable the
       use of some of newer features that can make the build more efficient.
 
+  set_path_map [optional]
+
+      Function used to specify path overrides. See "set_path_map" function
+      for details
+
 Example .gn file contents
 
   buildconfig = "//build/config/BUILDCONFIG.gn"
@@ -459,7 +464,8 @@ bool Setup::RunPostMessageLoop(const base::CommandLine& cmdline) {
     return false;
   }
 
-  if (!build_settings_.build_args().VerifyAllOverridesUsed(&err)) {
+  if (!build_settings_.build_args().VerifyAllOverridesUsed(&err) ||
+      !Scope::VerifyAllUpdatesUsed(&err)) {
     if (cmdline.HasSwitch(switches::kFailOnUnusedArgs)) {
       err.PrintToStdout();
       return false;
@@ -839,7 +845,13 @@ bool Setup::RunConfigFile(Err* err) {
 }
 
 bool Setup::FillOtherConfig(const base::CommandLine& cmdline, Err* err) {
-  SourceDir current_dir("//");
+
+  // May need to update the source path of the main gn file
+  root_build_file_ = SourceFile(
+          build_settings_.RemapActualToSourcePath(root_build_file_.value()),
+          root_build_file_.value());
+
+  SourceDir current_dir(build_settings_.RemapActualToSourcePath("//"));
   Label root_target_label(current_dir, "");
 
   // Secondary source path, read from the config file if present.

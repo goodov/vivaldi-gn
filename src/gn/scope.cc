@@ -27,6 +27,12 @@ bool IsPrivateVar(std::string_view name) {
 
 }  // namespace
 
+Scope::UpdateParseItem::UpdateParseItem() {}
+Scope::UpdateParseItem::~UpdateParseItem() = default;
+
+Scope::UpdateParseMap Scope::target_update_list;
+Scope::UpdateParseMap Scope::template_update_list;
+
 // Defaults to all false, which are the things least likely to cause errors.
 Scope::MergeOptions::MergeOptions()
     : clobber_existing(false),
@@ -310,6 +316,11 @@ bool Scope::NonRecursiveMergeTo(Scope* dest,
     if (!options.clobber_existing) {
       const Value* existing_value = dest->GetValue(current_name);
       if (existing_value && new_value != *existing_value) {
+        if (options.prefer_existing) {
+          if (options.mark_dest_used)
+            dest->MarkUsed(current_name);
+          continue;
+        }
         // Value present in both the source and the dest.
         std::string desc_string(desc_for_err);
         *err = Err(node_for_err, "Value collision.",
@@ -569,4 +580,29 @@ bool Scope::RecordMapValuesEqual(const RecordMap& a, const RecordMap& b) {
       return false;  // Values for variable in 'a' and 'b' are different.
   }
   return true;
+}
+
+namespace {
+bool VerifyAllUpdatesInListUsed(Scope::UpdateParseMap& map,
+                                const std::string& name,
+                                Err* err) {
+  for (const auto& it : map) {
+    if (!it.second.used && !it.second.updates.empty()) {
+      std::string help =
+        "You set " + name+ " updates of the label \"" + it.first +
+        "\" here and it was unused when the project was finished\n.";
+      *err = it.second.updates[0].first->MakeErrorDescribing(
+          "Unused " + name + " update.", help);
+      return false;
+    }
+  }
+  return true;
+}
+}
+
+bool Scope::VerifyAllUpdatesUsed(Err *err) {
+  return (
+      VerifyAllUpdatesInListUsed(target_update_list, "update_target", err) &&
+      VerifyAllUpdatesInListUsed(template_update_list,
+                                 "update_template_instance", err));
 }

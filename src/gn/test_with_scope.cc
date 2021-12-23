@@ -36,7 +36,9 @@ TestWithScope::TestWithScope()
   scope_.set_item_collector(&items_);
 }
 
-TestWithScope::~TestWithScope() = default;
+TestWithScope::~TestWithScope() {
+  build_settings_.ClearRegisterPathMap();
+}
 
 Label TestWithScope::ParseLabel(const std::string& str) const {
   Err err;

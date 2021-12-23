@@ -42,6 +42,20 @@ class Scope {
   // Holds an owning list of Items.
   using ItemVector = std::vector<std::unique_ptr<Item>>;
 
+  typedef std::pair<const ParseNode *, std::unique_ptr<Scope>>
+            UpdateParseListElement;
+  typedef std::vector<UpdateParseListElement> UpdateParseList;
+  typedef std::set<std::string> UpdatedTargetSet;
+  struct UpdateParseItem {
+    bool used = false;
+    UpdateParseList updates;
+    UpdatedTargetSet targets_done;
+
+    UpdateParseItem();
+    ~UpdateParseItem();
+  };
+  typedef std::map<std::string, UpdateParseItem> UpdateParseMap;
+
   // A flag to indicate whether a function should recurse into nested scopes,
   // or only operate on the current scope.
   enum SearchNested { SEARCH_NESTED, SEARCH_CURRENT };
@@ -69,7 +83,7 @@ class Scope {
     MergeOptions();
     ~MergeOptions();
 
-    // When set, all existing avlues in the destination scope will be
+    // When set, all existing values in the destination scope will be
     // overwritten.
     //
     // When false, it will be an error to merge a variable into another scope
@@ -78,6 +92,10 @@ class Scope {
     // somehow multiply import the same file, for example). This case will be
     // ignored since there is nothing getting lost.
     bool clobber_existing;
+
+    // Keep exisiting value if merge source also have a variable of the same
+    // name
+    bool prefer_existing = false;
 
     // When true, private variables (names beginning with an underscore) will
     // be copied to the destination scope. When false, private values will be
@@ -319,6 +337,14 @@ class Scope {
   void SetProperty(const void* key, void* value);
   void* GetProperty(const void* key, const Scope** found_on_scope) const;
 
+  static UpdateParseMap &GetTargetUpdaters() {
+    return target_update_list;
+  }
+  static UpdateParseMap &GetTemplateInstanceUpdaters() {
+    return template_update_list;
+  }
+  static bool VerifyAllUpdatesUsed(Err *err);
+
  private:
   friend class ProgrammaticProvider;
 
@@ -377,6 +403,9 @@ class Scope {
   SourceDir source_dir_;
 
   SourceFileSet build_dependency_files_;
+
+  static UpdateParseMap target_update_list;
+  static UpdateParseMap template_update_list;
 
   Scope(const Scope&) = delete;
   Scope& operator=(const Scope&) = delete;
